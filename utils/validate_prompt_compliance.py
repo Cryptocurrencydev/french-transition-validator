@@ -1,30 +1,38 @@
 import re
-from collections import defaultdict, Counter
+from collections import Counter
 
-FRENCH_STOPWORDS = {
-    "le", "la", "les", "de", "des", "du", "un", "une", "et", "en", "à", "au",
-    "aux", "par", "pour", "sur", "avec", "dans", "ce", "cet", "cette", "qui",
-    "que", "quoi", "dont", "où", "mais", "ou", "donc", "or", "ni", "car",
-    "si", "ne", "pas", "plus", "moins", "très", "ainsi", "comme", "aussi"
+# Refined stopwords: excluded mid-transition, but NOT at beginning
+REFINED_STOPWORDS = {
+    "le", "la", "les", "un", "une", "de", "du", "des",
+    "en", "à", "par", "pour", "avec", "dans", "sur",
+    "et", "que", "si", "ce", "ces", "au", "aux", "l'", "d'", "qu'",
+    "se", "s'", "y", "on", "mais", "ou", "donc", "or", "ni", "car"
 }
 
-def tokenize(text):
+def tokenize(text: str) -> list:
+    """Normalize case, remove punctuation, return list of word tokens."""
     text = text.lower()
     text = re.sub(r"[^\w\s']", '', text)
     return text.split()
 
-def check_transition_group(transitions):
-    word_counts = Counter()
+def check_transition_group(transitions: list) -> dict:
+    """Check a group of transitions for repetition and 'enfin' misuse."""
     all_tokens = []
     enfin_misplaced = False
 
     for i, phrase in enumerate(transitions):
         tokens = tokenize(phrase)
+
         if i != len(transitions) - 1 and "enfin" in tokens:
             enfin_misplaced = True
-        all_tokens.extend([t for t in tokens if t not in FRENCH_STOPWORDS])
 
-    repeated_words = [word for word, count in Counter(all_tokens).items() if count > 1]
+        if tokens:
+            all_tokens.append(tokens[0])  # Always include first word
+            all_tokens.extend(t for t in tokens[1:] if t not in REFINED_STOPWORDS)
+
+    repeated_words = [
+        word for word, count in Counter(all_tokens).items() if count > 1
+    ]
 
     violations = {}
     if repeated_words:
@@ -34,7 +42,8 @@ def check_transition_group(transitions):
 
     return violations
 
-def validate_batch(batch_outputs):
+def validate_batch(batch_outputs: list) -> dict:
+    """Validate a batch of transition groups."""
     summary = {
         "total_outputs": len(batch_outputs),
         "outputs_with_violations": 0,
